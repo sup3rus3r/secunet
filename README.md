@@ -65,7 +65,7 @@ SecuNet has been tested in production with **Fireworks AI** using the `kimi-k2p5
 | **Recon** | `#00D4FF` | Network discovery, port scanning, service fingerprinting, CVE lookup, Shodan |
 | **Exploit** | `#FF3B30` | Automated exploitation with CVSS risk assessment and HITL gate for critical actions |
 | **Detect** | `#FFB300` | SIEM integration (Splunk, Elastic, Sentinel), Sigma rule generation, detection scoring |
-| **Remediate** | `#00C851` | Patch generation, fix deployment — always requires HITL approval before execution |
+| **Fix Advisor** | `#00C851` | Generates Ansible playbooks and fix packages per finding — ZIP download, no credentials required |
 | **Monitor** | `#9B59B6` | Tripwire deployment, anomaly detection, continuous posture monitoring |
 
 All agents communicate exclusively through **Commander** — the sole entity that routes work, tasks agents, and decides what to surface to the engineer. Agents never receive messages from anyone other than Commander and never broadcast output directly.
@@ -110,6 +110,8 @@ Dashboard (Next.js)  <-- WebSocket -->  Command Center (Kali Linux · root)
 - **Live tactical dashboard** — agent status, comms, activity trail, findings, HITL queue, metrics, terminal feed
 - **Session management** — New Session wipes all memory layers (Redis, ChromaDB, PostgreSQL, frontend stores)
 - **PDF report generation** — downloadable penetration test report with executive summary, findings, exploit log, and remediation plan (`GET /report/pdf`)
+- **Fix Advisor** — per-finding ZIP packages containing a complete Ansible playbook, plain English instructions, and README; downloadable from the Findings panel
+- **Clean execution feed** — nmap output shown in human-readable format; XML is parsed internally and never surfaced to the terminal
 - **SIEM integrations** — Splunk, Elasticsearch, Microsoft Sentinel
 
 ---
@@ -230,13 +232,43 @@ The TOC dashboard at `http://localhost:3000` provides:
 - **Agent Fleet** — live status of all 5 agents
 - **Activity Feed** — Commander's decision trail: every inbound result and outbound task dispatch, one line each
 - **Comms Feed** — Commander ↔ Engineer dialogue only; clean and intentional, no raw agent output
-- **Findings Panel** — all discovered vulnerabilities, severity-sorted, with remediation status
+- **Findings Panel** — all discovered vulnerabilities, severity-sorted; FIX download button appears when Fix Advisor has packaged a fix
 - **HITL Queue** — approve or deny high-risk actions before agents execute
 - **Execution Feed** — live terminal output of every tool invoked on the Kali host
 - **ATT&CK Coverage** — MITRE technique heatmap updated in real time
 - **Metrics Panel** — hosts, findings, coverage score, detection score
 - **Report** — generate and download a professional PDF penetration test report
 - **New Session** — wipes all memory layers and all dashboard feeds for a clean engagement start
+
+---
+
+## Fix Advisor
+
+When Commander tasks the Fix Advisor agent with a finding, it generates a downloadable fix package and uploads it to the Command Center. A **FIX ↓** button appears on the finding card in the dashboard.
+
+Each ZIP contains:
+
+| File | Contents |
+|------|----------|
+| `playbook.yml` | Complete runnable Ansible playbook with vars, tasks, and verification step |
+| `INSTRUCTIONS.md` | Step-by-step guide — Ansible method and manual fallback |
+| `README.md` | Summary table, CVE details, and quick-start command |
+
+```bash
+# Apply the fix
+ansible-playbook -i "192.168.1.10," playbook.yml
+
+# Or against an inventory group
+ansible-playbook -i inventory.ini playbook.yml --limit 192.168.1.10
+```
+
+No credentials are stored by the platform. The engineer downloads the ZIP and hands it to their sysadmin to apply.
+
+Packages are also accessible directly:
+```
+GET http://localhost:8001/remediation/{finding_id}/download
+GET http://localhost:8001/remediation   # list all available packages
+```
 
 ---
 
@@ -308,7 +340,7 @@ secunet/
 │   ├── recon/               # Recon agent (nmap, Shodan, CVE lookup)
 │   ├── exploit/             # Exploit agent (Metasploit, risk assessment, HITL)
 │   ├── detect/              # Detect agent (SIEM, Sigma rules, coverage scoring)
-│   ├── remediate/           # Remediate agent (patch generation, HITL-gated deploy)
+│   ├── remediate/           # Fix Advisor agent (Ansible playbook + ZIP generation, no auto-deploy)
 │   └── monitor/             # Monitor agent (tripwires, anomaly detection)
 │
 ├── dashboard/               # Next.js — Tactical Operations Center

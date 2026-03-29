@@ -39,6 +39,9 @@ COMMANDER_SUMMARY    = "commander.summary"     # rolling window compression comp
 # ── Activity feed events ──────────────────────────────────────
 ACTIVITY_EVENT       = "activity.event"        # Commander decision trail entry
 
+# ── Fix Advisor events ────────────────────────────────────────
+FIX_READY            = "fix.ready"             # Fix package ZIP available for download
+
 # ── Context write event types (stored in vector store) ───────
 EVT_SCAN_RESULT         = "scan_result"
 EVT_ASSET_DISCOVERY     = "asset_discovery"

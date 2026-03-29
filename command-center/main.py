@@ -367,6 +367,67 @@ async def generate_report_pdf():
 app.include_router(report_router)
 
 
+# ── Fix Advisor — remediation package upload / download ───────
+from fastapi import Request, HTTPException
+
+remediation_router = _APIRouter(prefix="/remediation", tags=["remediation"])
+
+@remediation_router.post("/{finding_id}")
+async def upload_fix_package(finding_id: str, request: Request) -> dict:
+    """
+    Remediate agent POSTs a ZIP artifact here after generating a fix.
+    Body is raw ZIP bytes (Content-Type: application/zip).
+    """
+    from commander import fix_store
+    from shared.event_types import FIX_READY
+
+    zip_bytes = await request.body()
+    if not zip_bytes:
+        raise HTTPException(400, "Empty body — ZIP bytes expected")
+
+    host = request.headers.get("X-Host", "")
+    cve  = request.headers.get("X-CVE", "")
+    fix_store.store(finding_id, zip_bytes, host=host, cve=cve)
+
+    # Broadcast fix.ready so dashboard download button appears
+    await broadcaster.manager.send({
+        "type":       FIX_READY,
+        "finding_id": finding_id,
+        "host":       host,
+        "cve":        cve,
+        "timestamp":  datetime.now(timezone.utc).isoformat(),
+    })
+
+    return {"ok": True, "finding_id": finding_id, "size": len(zip_bytes)}
+
+
+@remediation_router.get("/{finding_id}/download")
+async def download_fix_package(finding_id: str):
+    """Stream the ZIP fix package for a given finding to the browser."""
+    from fastapi.responses import Response
+    from commander import fix_store
+
+    pkg = fix_store.get(finding_id)
+    if not pkg:
+        raise HTTPException(404, "Fix package not available — run Fix Advisor first")
+
+    return Response(
+        content=pkg["bytes"],
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{pkg["filename"]}"'},
+    )
+
+
+@remediation_router.get("")
+async def list_fix_packages() -> dict:
+    """List all available fix packages."""
+    from commander import fix_store
+    return {"packages": fix_store.list_all()}
+
+
+app.include_router(remediation_router)
+
+
 # ── Health check ──────────────────────────────────────────────
 @app.get("/health")
 async def health() -> dict:

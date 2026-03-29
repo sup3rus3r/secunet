@@ -2,7 +2,9 @@
 import { useFindingsStore, type Severity } from "@/store/findings";
 import { AGENT_COLORS } from "@/store/agents";
 import { format } from "date-fns";
-import { AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ShieldAlert, Download, PackageCheck } from "lucide-react";
+
+const CC_URL = process.env.NEXT_PUBLIC_CC_URL ?? "http://localhost:8001";
 
 const SEVERITY_COLORS: Record<Severity, string> = {
   critical: "#FF3B30",
@@ -36,7 +38,7 @@ export default function FindingsPanel() {
         <ShieldAlert className="w-3 h-3" />
         Findings
         {open.length > 0 && (
-          <span className="ml-auto text-[#FF3B30] font-mono text-[10px] font-bold">
+          <span className="ml-auto text-agent-exploit font-mono text-[10px] font-bold">
             {open.length} open
           </span>
         )}
@@ -81,7 +83,7 @@ export default function FindingsPanel() {
           >
             <div className="flex items-start gap-1.5">
               {f.remediated
-                ? <CheckCircle2 className="w-3 h-3 text-[#00C851] shrink-0 mt-0.5" />
+                ? <CheckCircle2 className="w-3 h-3 text-agent-remediate shrink-0 mt-0.5" />
                 : <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" style={{ color: SEVERITY_COLORS[f.severity] }} />
               }
               <div className="flex-1 min-w-0">
@@ -93,7 +95,7 @@ export default function FindingsPanel() {
                     {f.severity}
                   </span>
                   {f.cve && (
-                    <span className="text-[10px] font-mono text-[#FF6B35]">{f.cve}</span>
+                    <span className="text-[10px] font-mono text-agent-commander">{f.cve}</span>
                   )}
                   {f.technique && (
                     <span className="text-[10px] font-mono text-muted-foreground">{f.technique}</span>
@@ -107,10 +109,24 @@ export default function FindingsPanel() {
             </div>
             <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
               <span style={{ color: AGENT_COLORS[f.agent_id] ?? "#5A6A7E" }}>
-                {f.agent_id.replace("-agent", "").toUpperCase()}
+                {f.agent_id === "remediate-agent"
+                  ? "FIX ADVISOR"
+                  : f.agent_id.replace("-agent", "").toUpperCase()}
               </span>
               <span>·</span>
               <span>{format(new Date(f.timestamp), "HH:mm:ss")}</span>
+              {f.fix_ready && (
+                <a
+                  href={`${CC_URL}/remediation/${f.finding_id}/download`}
+                  download
+                  title="Download fix package (Ansible playbook + instructions)"
+                  className="ml-auto flex items-center gap-0.5 text-agent-remediate hover:opacity-80 transition-opacity"
+                >
+                  <PackageCheck className="w-3 h-3" />
+                  <span className="font-bold">FIX</span>
+                  <Download className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
           </div>
         ))}

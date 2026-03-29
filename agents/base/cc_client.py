@@ -195,5 +195,35 @@ class CCClient:
             await asyncio.sleep(5)
         return "rejected"  # timeout = reject
 
+    # ── Fix Advisor ───────────────────────────────────────────────────────
+
+    async def upload_fix_package(
+        self,
+        finding_id: str,
+        zip_bytes: bytes,
+        host: str = "",
+        cve: str = "",
+    ) -> bool:
+        """
+        Upload a ZIP fix package to the Command Center.
+        Returns True on success.
+        """
+        try:
+            r = await self._http.post(
+                f"/remediation/{finding_id}",
+                content=zip_bytes,
+                headers={
+                    "Content-Type": "application/zip",
+                    "X-Host": host,
+                    "X-CVE":  cve,
+                },
+                timeout=30,
+            )
+            r.raise_for_status()
+            return True
+        except Exception as exc:
+            logger.error("[%s] upload_fix_package failed: %s", self.agent_id, exc)
+            return False
+
     async def aclose(self) -> None:
         await self._http.aclose()

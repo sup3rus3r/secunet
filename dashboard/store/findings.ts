@@ -14,6 +14,7 @@ export interface Finding {
   description: string;
   timestamp:   string;
   remediated:  boolean;
+  fix_ready:   boolean;
 }
 
 const SEVERITY_ORDER: Record<Severity, number> = {
@@ -24,6 +25,7 @@ interface FindingsStore {
   findings:        Finding[];
   push:            (f: Finding) => void;
   markRemediated:  (finding_id: string) => void;
+  markFixReady:    (finding_id: string) => void;
   clear:           () => void;
 }
 
@@ -35,7 +37,7 @@ export const useFindingsStore = create<FindingsStore>()(
       push: (f) =>
         set((s) => {
           const deduped = s.findings.filter((x) => x.finding_id !== f.finding_id);
-          const next = [...deduped, f].sort(
+          const next = [...deduped, { ...f, fix_ready: f.fix_ready ?? false }].sort(
             (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
           );
           return { findings: next };
@@ -45,6 +47,13 @@ export const useFindingsStore = create<FindingsStore>()(
         set((s) => ({
           findings: s.findings.map((f) =>
             f.finding_id === finding_id ? { ...f, remediated: true } : f
+          ),
+        })),
+
+      markFixReady: (finding_id) =>
+        set((s) => ({
+          findings: s.findings.map((f) =>
+            f.finding_id === finding_id ? { ...f, fix_ready: true } : f
           ),
         })),
 

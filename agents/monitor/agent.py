@@ -85,18 +85,26 @@ Be concise in summaries — speed matters. Flag everything suspicious.
 
         await self.cc.heartbeat(status="running", current_task=f"checking host {host}")
 
+        import uuid as _uuid
         port_flag = f"-p {ports}" if ports else "--top-ports 1000"
-        cmd       = f"nmap -sV -T4 --open {port_flag} -oX - {host}"
+        xml_file  = f"/tmp/nmap_{_uuid.uuid4().hex}.xml"
+        # Normal output to stdout (terminal feed), XML to temp file (parsed silently)
+        cmd = f"nmap -sV -T4 --open {port_flag} -oX {xml_file} -oN - {host}"
 
         result = await self.cc.execute(cmd, target=host, technique="T0000", timeout=120)
-        stdout = result.get("stdout", "")
-
-        if not stdout or result.get("exit_code", -1) != 0:
+        if result.get("exit_code", -1) != 0 and not result.get("stdout", ""):
             err = result.get("stderr", "no output")
             return f"Scan failed for {host}: {err[:200]}"
 
+        # Read XML silently (internal parse — not shown in terminal feed)
+        xml_result    = await self.cc.execute(
+            f"cat {xml_file} 2>/dev/null; rm -f {xml_file}",
+            target=host, technique="T0000", timeout=10, silent=True,
+        )
+        xml_text      = xml_result.get("stdout", "")
+
         # Parse nmap XML output into port list
-        current_ports = _parse_nmap_xml_ports(stdout)
+        current_ports = _parse_nmap_xml_ports(xml_text)
 
         # Run anomaly detection against baseline
         anomalies = await self._detector.check_host(host, current_ports)
@@ -258,15 +266,24 @@ Be concise in summaries — speed matters. Flag everything suspicious.
 
         await self.cc.heartbeat(status="running", current_task=f"ping sweep {scope}")
 
-        cmd    = f"nmap -sn -T4 --open {scope} -oX -"
+        import uuid as _uuid
+        xml_file = f"/tmp/nmap_{_uuid.uuid4().hex}.xml"
+        # Normal output to stdout (terminal feed), XML to temp file (parsed silently)
+        cmd    = f"nmap -sn -T4 {scope} -oX {xml_file} -oN -"
         result = await self.cc.execute(cmd, target=scope, technique="T0000", timeout=120)
-        stdout = result.get("stdout", "")
 
-        if not stdout or result.get("exit_code", -1) != 0:
+        if result.get("exit_code", -1) != 0 and not result.get("stdout", ""):
             return f"Ping sweep failed for {scope}: {result.get('stderr', '')[:200]}"
 
+        # Read XML silently
+        xml_result = await self.cc.execute(
+            f"cat {xml_file} 2>/dev/null; rm -f {xml_file}",
+            target=scope, technique="T0000", timeout=10, silent=True,
+        )
+        xml_text = xml_result.get("stdout", "")
+
         # Parse live hosts from XML
-        live_hosts = _parse_nmap_xml_hosts(stdout)
+        live_hosts = _parse_nmap_xml_hosts(xml_text)
 
         if not live_hosts:
             return f"No live hosts found in scope {scope}"

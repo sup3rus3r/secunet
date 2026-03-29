@@ -87,6 +87,12 @@ function dispatch(event: Record<string, unknown>) {
     return;
   }
 
+  if (type === "fix.ready") {
+    const { finding_id } = event as { finding_id: string };
+    if (finding_id) useFindingsStore.getState().markFixReady(finding_id);
+    return;
+  }
+
   if (type === "activity.event") {
     useActivityStore.getState().push({
       id:        (event.id as string) ?? crypto.randomUUID(),
@@ -111,6 +117,7 @@ function dispatch(event: Record<string, unknown>) {
       description: (event.description as string) ?? "",
       timestamp:   (event.timestamp as string)   ?? new Date().toISOString(),
       remediated:  false,
+      fix_ready:   false,
     });
     // Exploit findings = attempted, detect-agent findings = detected
     if (technique && technique !== "T0000") {
