@@ -1,0 +1,64 @@
+# ── Redis snapshots ──────────────────────────────────────────
+dump.rdb
+*.rdb
+
+# ── Environment & secrets ────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.venv
+pip-log.txt
+
+# ── Node / Next.js ───────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Docker ───────────────────────────────────────────────────
+# (docker-compose.yml and Dockerfiles ARE committed)
+
+# ── Databases & data ─────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+chroma_data/
+postgres_data/
+redis_data/
+mongo_data/
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Misc ─────────────────────────────────────────────────────
+*.bak
+*.tmp
+.cache/

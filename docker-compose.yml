@@ -1,0 +1,240 @@
+networks:
+  dashboard_net:
+    driver: bridge
+  command_net:
+    driver: bridge
+    internal: true
+  target_net:
+    driver: bridge
+    internal: true
+
+volumes:
+  shared_fs:
+  chroma_data:
+  postgres_data:
+  redis_data:
+  mongo_data:
+
+services:
+
+  # ── Auth Service ──────────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: secunet-backend
+    networks: [dashboard_net]
+    ports:
+      - "8000:8000"
+    environment:
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+      - DATABASE_TYPE=mongo
+      - MONGO_URL=mongodb://mongo:27017
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+    depends_on: [mongo]
+    restart: unless-stopped
+
+  # ── Command Center (Kali — the single OS all agents use) ──
+  command-center:
+    build:
+      context: .
+      dockerfile: command-center/Dockerfile
+    container_name: secunet-command-center
+    user: root
+    networks: [dashboard_net, command_net, target_net]
+    ports:
+      - "8001:8001"
+    volumes:
+      - shared_fs:/shared
+      - chroma_data:/chroma
+    environment:
+      # LLM provider — set LLM_PROVIDER to: fireworks | anthropic | openai | lmstudio
+      # Recommended: fireworks (most reliable for offensive security tool use)
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+      - LLM_COMPRESSION_MODEL=${LLM_COMPRESSION_MODEL}
+      # Mission
+      - TARGET_SCOPE=${TARGET_SCOPE}
+      - MISSION_NAME=${MISSION_NAME}
+      - AGGRESSION_LEVEL=${AGGRESSION_LEVEL}
+      # Infrastructure
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=${POSTGRES_URL}
+      - CHROMA_PATH=/chroma
+      # Commander tuning
+      - ROLLING_WINDOW_SIZE=${ROLLING_WINDOW_SIZE:-15}
+      - COMPRESSION_THRESHOLD=${COMPRESSION_THRESHOLD:-20}
+      - SEMANTIC_RESULTS=${SEMANTIC_RESULTS:-5}
+      - SUMMARY_RESULTS=${SUMMARY_RESULTS:-3}
+      - MAX_CONTEXT_TOKENS=${MAX_CONTEXT_TOKENS:-2600}
+      - DETECTION_THRESHOLD=${DETECTION_THRESHOLD:-0.6}
+    depends_on: [redis, postgres]
+    restart: unless-stopped
+
+  # ── Dashboard ─────────────────────────────────────────────
+  dashboard:
+    build: ./dashboard
+    container_name: secunet-dashboard
+    networks: [dashboard_net]
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8001/ws
+      - NEXT_PUBLIC_CC_URL=http://localhost:8001
+      - NEXT_PUBLIC_AUTH_API_URL=http://localhost:8000
+      - BACKEND_INTERNAL_URL=http://backend:8000
+      - AUTH_SECRET=${AUTH_SECRET}
+      - AUTH_URL=${AUTH_URL}
+      - NEXT_PUBLIC_ENCRYPTION_KEY=${NEXT_PUBLIC_ENCRYPTION_KEY}
+    depends_on: [command-center, backend]
+    restart: unless-stopped
+
+  # ── Agent Fleet (lightweight Python — execute via CC Kali) ─
+  recon-agent:
+    build:
+      context: .
+      dockerfile: agents/recon/Dockerfile
+    container_name: secunet-recon
+    networks: [command_net]
+    environment:
+      - CC_URL=http://command-center:8001
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+      - SHODAN_API_KEY=${SHODAN_API_KEY}
+      - RECON_INTERVAL=${RECON_INTERVAL:-3600}
+    depends_on: [command-center]
+    restart: unless-stopped
+
+  exploit-agent:
+    build:
+      context: .
+      dockerfile: agents/exploit/Dockerfile
+    container_name: secunet-exploit
+    networks: [command_net]
+    environment:
+      - CC_URL=http://command-center:8001
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+      - CRITICAL_RISK_REQUIRES_HITL=${CRITICAL_RISK_REQUIRES_HITL:-true}
+      - DC_REQUIRES_HITL=${DC_REQUIRES_HITL:-true}
+    depends_on: [command-center]
+    restart: unless-stopped
+
+  detect-agent:
+    build:
+      context: .
+      dockerfile: agents/detect/Dockerfile
+    container_name: secunet-detect
+    networks: [command_net]
+    environment:
+      - CC_URL=http://command-center:8001
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+      - SPLUNK_URL=${SPLUNK_URL}
+      - SPLUNK_TOKEN=${SPLUNK_TOKEN}
+      - ELASTIC_URL=${ELASTIC_URL}
+      - ELASTIC_API_KEY=${ELASTIC_API_KEY}
+      - DETECTION_THRESHOLD=${DETECTION_THRESHOLD:-0.6}
+    depends_on: [command-center]
+    restart: unless-stopped
+
+  remediate-agent:
+    build:
+      context: .
+      dockerfile: agents/remediate/Dockerfile
+    container_name: secunet-remediate
+    networks: [command_net]
+    environment:
+      - CC_URL=http://command-center:8001
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+    depends_on: [command-center]
+    restart: unless-stopped
+
+  monitor-agent:
+    build:
+      context: .
+      dockerfile: agents/monitor/Dockerfile
+    container_name: secunet-monitor
+    networks: [command_net]
+    environment:
+      - CC_URL=http://command-center:8001
+      - LLM_PROVIDER=${LLM_PROVIDER:-fireworks}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY}
+      - FIREWORKS_BASE_URL=${FIREWORKS_BASE_URL:-https://api.fireworks.ai/inference/v1}
+      - FIREWORKS_MODEL=${FIREWORKS_MODEL:-accounts/fireworks/models/kimi-k2p5}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-opus-4-6}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LMSTUDIO_BASE_URL=${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      - LMSTUDIO_MODEL=${LMSTUDIO_MODEL}
+    depends_on: [command-center]
+    restart: unless-stopped
+
+  # ── Infrastructure ────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: secunet-redis
+    networks: [command_net]
+    volumes: [redis_data:/data]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: secunet-postgres
+    networks: [command_net]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    environment:
+      - POSTGRES_USER=secunet
+      - POSTGRES_PASSWORD=secunet
+      - POSTGRES_DB=secunet
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:4.4
+    container_name: secunet-mongo
+    networks: [dashboard_net]
+    volumes: [mongo_data:/data/db]
+    restart: unless-stopped

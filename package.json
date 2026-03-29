@@ -1,0 +1,23 @@
+{
+  "name": "secunet",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "up": "docker compose up -d --build",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f",
+    "reset": "docker compose down -v --remove-orphans && docker compose up -d --build",
+    "dev": "concurrently \"npm run dev --prefix dashboard\" \"npm run api\"",
+    "api": "cd backend && uv run uvicorn main:app --reload"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.1.18"
+  }
+}

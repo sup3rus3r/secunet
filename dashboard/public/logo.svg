@@ -1,0 +1,30 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer hexagon -->
+  <polygon points="24,1 44,12.5 44,35.5 24,47 4,35.5 4,12.5"
+    stroke="#00D4FF" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+  <!-- Inner hex fill -->
+  <polygon points="24,7 38,15.5 38,32.5 24,41 10,32.5 10,15.5"
+    fill="#00D4FF" fill-opacity="0.06"/>
+  <!-- Crosshair verticals -->
+  <line x1="24" y1="1"  x2="24" y2="13" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="24" y1="35" x2="24" y2="47" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Crosshair horizontals -->
+  <line x1="4"  y1="24" x2="16" y2="24" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="32" y1="24" x2="44" y2="24" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Target ring -->
+  <circle cx="24" cy="24" r="7" stroke="#00D4FF" stroke-width="1.5" fill="none" stroke-opacity="0.7"/>
+  <!-- Target ring inner tick marks -->
+  <line x1="24" y1="15" x2="24" y2="17" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="24" y1="31" x2="24" y2="33" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="15" y1="24" x2="17" y2="24" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="31" y1="24" x2="33" y2="24" stroke="#00D4FF" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="24" cy="24" r="2.5" fill="#00D4FF"/>
+  <!-- Hex corner nodes -->
+  <circle cx="24" cy="1"    r="2" fill="#00D4FF"/>
+  <circle cx="44" cy="12.5" r="2" fill="#00D4FF"/>
+  <circle cx="44" cy="35.5" r="2" fill="#00D4FF"/>
+  <circle cx="24" cy="47"   r="2" fill="#00D4FF"/>
+  <circle cx="4"  cy="35.5" r="2" fill="#00D4FF"/>
+  <circle cx="4"  cy="12.5" r="2" fill="#00D4FF"/>
+</svg>
