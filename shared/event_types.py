@@ -36,6 +36,9 @@ SYSTEM_INFO          = "system.info"           # platform-level info message
 # ── Commander events ──────────────────────────────────────────
 COMMANDER_SUMMARY    = "commander.summary"     # rolling window compression completed
 
+# ── Activity feed events ──────────────────────────────────────
+ACTIVITY_EVENT       = "activity.event"        # Commander decision trail entry
+
 # ── Context write event types (stored in vector store) ───────
 EVT_SCAN_RESULT         = "scan_result"
 EVT_ASSET_DISCOVERY     = "asset_discovery"

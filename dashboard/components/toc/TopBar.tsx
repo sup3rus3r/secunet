@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
-import { useMissionStore } from "@/store/mission";
+import { useMissionStore }  from "@/store/mission";
 import { useMessagesStore } from "@/store/messages";
 import { useFindingsStore } from "@/store/findings";
 import { useTerminalStore } from "@/store/terminal";
-import { useHitlStore } from "@/store/hitl";
+import { useHitlStore }     from "@/store/hitl";
 import { useCoverageStore } from "@/store/coverage";
+import { useActivityStore } from "@/store/activity";
 import { Wifi, WifiOff, Target, Activity, Pencil, RefreshCw, FilePlus, FileText } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import SecuNetLogo from "@/components/SecuNetLogo";
@@ -33,6 +34,7 @@ export default function TopBar() {
   const clearTerminal  = useTerminalStore((s) => s.clear);
   const resetCoverage  = useCoverageStore((s) => s.reset);
   const clearHitl      = useHitlStore((s) => s.clear);
+  const clearActivity  = useActivityStore((s) => s.clear);
 
   const [editingScope,  setEditingScope]  = useState(false);
   const [scopeDraft,    setScopeDraft]    = useState("");
@@ -48,6 +50,7 @@ export default function TopBar() {
     clearTerminal();
     clearHitl();
     resetCoverage();
+    clearActivity();
     setConfirmNew(false);
     // Wipe backend memory: Redis windows, ChromaDB, PostgreSQL, mission state
     try {
@@ -86,6 +89,7 @@ export default function TopBar() {
   const phaseColor = PHASE_COLORS[current_phase?.toUpperCase()] ?? "text-foreground";
 
   return (
+    <>
     <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card shrink-0 z-10">
       {/* Left — brand + mission */}
       <div className="flex items-center gap-4">
@@ -215,5 +219,6 @@ export default function TopBar() {
     </header>
 
       {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+    </>
   );
 }

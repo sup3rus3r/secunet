@@ -12,6 +12,7 @@ import { useFindingsStore } from "@/store/findings";
 import { useHitlStore }     from "@/store/hitl";
 import { useTerminalStore } from "@/store/terminal";
 import { useCoverageStore } from "@/store/coverage";
+import { useActivityStore } from "@/store/activity";
 
 // CC WebSocket URL — falls back to localhost for dev
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8001/ws";
@@ -57,14 +58,42 @@ function dispatch(event: Record<string, unknown>) {
     return;
   }
 
-  if (type === "agent.message") {
+  // Comms feed — Commander ↔ Engineer dialogue only
+  if (type === "human.message") {
     useMessagesStore.getState().push({
       message_id: (event.message_id as string) ?? crypto.randomUUID(),
-      from_id:    (event.from_id as string) ?? "unknown",
-      to:         (event.to as string) ?? "broadcast",
+      from_id:    (event.from_id as string) ?? "engineer",
+      to:         (event.to as string) ?? "commander",
       content:    (event.content as string) ?? "",
       type:       "chat",
       timestamp:  (event.timestamp as string) ?? new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (type === "agent.message") {
+    const fromId = (event.from_id as string) ?? "";
+    // Only Commander replies belong in the Comms feed — agent raw output goes to Activity
+    if (fromId === "commander") {
+      useMessagesStore.getState().push({
+        message_id: (event.message_id as string) ?? crypto.randomUUID(),
+        from_id:    fromId,
+        to:         (event.to as string) ?? "engineer",
+        content:    (event.content as string) ?? "",
+        type:       "chat",
+        timestamp:  (event.timestamp as string) ?? new Date().toISOString(),
+      });
+    }
+    return;
+  }
+
+  if (type === "activity.event") {
+    useActivityStore.getState().push({
+      id:        (event.id as string) ?? crypto.randomUUID(),
+      direction: (event.direction as "inbound" | "outbound") ?? "inbound",
+      actor:     (event.actor as string) ?? "unknown",
+      summary:   (event.summary as string) ?? "",
+      timestamp: (event.timestamp as string) ?? new Date().toISOString(),
     });
     return;
   }
@@ -151,17 +180,7 @@ function dispatch(event: Record<string, unknown>) {
     return;
   }
 
-  // Generic events with content get pushed to chat
-  if (event.content && event.from_id) {
-    useMessagesStore.getState().push({
-      message_id: (event.message_id as string) ?? crypto.randomUUID(),
-      from_id:    event.from_id  as string,
-      to:         (event.to as string) ?? "broadcast",
-      content:    event.content  as string,
-      type:       "broadcast",
-      timestamp:  (event.timestamp as string) ?? new Date().toISOString(),
-    });
-  }
+  // Unknown events are silently dropped — no generic fallback to Comms feed
 }
 
 function connect() {

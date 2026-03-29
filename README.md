@@ -68,7 +68,7 @@ SecuNet has been tested in production with **Fireworks AI** using the `kimi-k2p5
 | **Remediate** | `#00C851` | Patch generation, fix deployment — always requires HITL approval before execution |
 | **Monitor** | `#9B59B6` | Tripwire deployment, anomaly detection, continuous posture monitoring |
 
-All agents communicate through the **Command Center** — a central Redis pub/sub bus with a shared Commander context engine (ChromaDB + PostgreSQL + Redis rolling window).
+All agents communicate exclusively through **Commander** — the sole entity that routes work, tasks agents, and decides what to surface to the engineer. Agents never receive messages from anyone other than Commander and never broadcast output directly.
 
 ---
 
@@ -89,6 +89,8 @@ Dashboard (Next.js)  <-- WebSocket -->  Command Center (Kali Linux · root)
 
 - **Command Center** is the only container on all 3 networks (`dashboard_net`, `command_net`, `target_net`)
 - **Agents** are lightweight Python containers — they send `execute()` requests to CC, which runs tools on Kali
+- **Commander** is the sole router: every message goes to Commander first; only Commander writes to agent inboxes
+- **Parallel tasking**: Commander dispatches multiple agents simultaneously (e.g. Recon + Detect baseline at the same time) when the work is parallelisable
 - **Dashboard** is a live WebSocket view — all state streamed from CC
 - **Commander Agent** is the sole writer to the vector store — all context flows through it
 
@@ -102,7 +104,10 @@ Dashboard (Next.js)  <-- WebSocket -->  Command Center (Kali Linux · root)
 - **Multi-provider LLM** — swap Fireworks / Anthropic / OpenAI / LM Studio via a single env var
 - **Commander memory** — three-layer context engine (Redis rolling window, ChromaDB vector store, PostgreSQL cold storage)
 - **MITRE ATT&CK scoped execution** — every command tagged with a technique ID, scope-enforced
-- **Live tactical dashboard** — agent status, chat, findings, HITL queue, metrics, terminal feed
+- **Commander-centric routing** — all messages flow through Commander; only Commander tasks agents; agents are deaf to everything else
+- **Parallel agent tasking** — Commander dispatches multiple agents simultaneously when work can run in parallel
+- **Activity Feed** — real-time Commander decision trail (inbound results, outbound tasks) separate from the Comms feed
+- **Live tactical dashboard** — agent status, comms, activity trail, findings, HITL queue, metrics, terminal feed
 - **Session management** — New Session wipes all memory layers (Redis, ChromaDB, PostgreSQL, frontend stores)
 - **PDF report generation** — downloadable penetration test report with executive summary, findings, exploit log, and remediation plan (`GET /report/pdf`)
 - **SIEM integrations** — Splunk, Elasticsearch, Microsoft Sentinel
@@ -223,14 +228,15 @@ make monitor
 The TOC dashboard at `http://localhost:3000` provides:
 
 - **Agent Fleet** — live status of all 5 agents
-- **Comms Feed** — real-time chat between engineer and commander/agents, with markdown rendering
+- **Activity Feed** — Commander's decision trail: every inbound result and outbound task dispatch, one line each
+- **Comms Feed** — Commander ↔ Engineer dialogue only; clean and intentional, no raw agent output
 - **Findings Panel** — all discovered vulnerabilities, severity-sorted, with remediation status
 - **HITL Queue** — approve or deny high-risk actions before agents execute
 - **Execution Feed** — live terminal output of every tool invoked on the Kali host
 - **ATT&CK Coverage** — MITRE technique heatmap updated in real time
 - **Metrics Panel** — hosts, findings, coverage score, detection score
 - **Report** — generate and download a professional PDF penetration test report
-- **New Session** — wipes all memory layers for a clean engagement start
+- **New Session** — wipes all memory layers and all dashboard feeds for a clean engagement start
 
 ---
 
@@ -307,8 +313,8 @@ secunet/
 │
 ├── dashboard/               # Next.js — Tactical Operations Center
 │   ├── app/                 # Landing, login, register, TOC (home)
-│   ├── components/toc/      # TopBar, AgentStatus, Chat, Findings, HITL, Metrics, Terminal, ReportModal
-│   ├── store/               # Zustand stores (mission, agents, messages, findings, hitl, terminal, coverage)
+│   ├── components/toc/      # TopBar, AgentStatus, Chat, ActivityFeed, Findings, HITL, Metrics, Terminal, ReportModal
+│   ├── store/               # Zustand stores (mission, agents, messages, findings, hitl, terminal, coverage, activity)
 │   └── lib/ws-client.ts     # WebSocket singleton with exponential backoff
 │
 ├── backend/                 # Auth service (FastAPI, MongoDB, JWT, bcrypt)

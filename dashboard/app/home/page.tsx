@@ -7,11 +7,12 @@ import WsBootstrap       from "@/components/toc/WsBootstrap";
 import TopBar            from "@/components/toc/TopBar";
 import AgentStatusPanel  from "@/components/toc/AgentStatusPanel";
 import ChatPanel         from "@/components/toc/ChatPanel";
+import ActivityFeed      from "@/components/toc/ActivityFeed";
 import FindingsPanel     from "@/components/toc/FindingsPanel";
 import HitlQueue         from "@/components/toc/HitlQueue";
 import MetricsPanel      from "@/components/toc/MetricsPanel";
 import TerminalFeed      from "@/components/toc/TerminalFeed";
-import AttackCoverage   from "@/components/toc/AttackCoverage";
+import AttackCoverage    from "@/components/toc/AttackCoverage";
 
 export default function TacticalOperationsCenter() {
   const { status } = useSession();
@@ -62,9 +63,14 @@ export default function TacticalOperationsCenter() {
             </div>
           </div>
 
-          {/* Center column — comms */}
-          <div className="flex-1 min-w-0 min-h-0">
-            <ChatPanel />
+          {/* Center column — activity trail + comms */}
+          <div className="flex-1 min-w-0 min-h-0 flex gap-1">
+            <div className="flex-1 min-w-0 min-h-0">
+              <ActivityFeed />
+            </div>
+            <div className="flex-1 min-w-0 min-h-0">
+              <ChatPanel />
+            </div>
           </div>
 
           {/* Right column — findings + HITL */}

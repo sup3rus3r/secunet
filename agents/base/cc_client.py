@@ -96,7 +96,7 @@ class CCClient:
 
     # ── Messaging ─────────────────────────────────────────────────────────
 
-    async def send_message(self, content: str, to: str = "broadcast",
+    async def send_message(self, content: str, to: str = "commander",
                            msg_type: str = "chat") -> None:
         try:
             await self._http.post("/messages/send", json={

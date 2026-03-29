@@ -1,10 +1,15 @@
 """
 Message router.
-Parses @mentions, dispatches to agent Redis inboxes,
-always broadcasts to the dashboard WebSocket, always writes
-to the Commander context store.
+All messages flow to Commander. Commander is the sole entity that tasks agents.
+Agents never receive messages from anyone other than Commander.
+
+Routing rules:
+  - Engineer message          → Commander inbox + dashboard broadcast
+  - Agent result/status       → Commander inbox only (no dashboard — Commander decides what to surface)
+  - Agent chat (to engineer)  → Commander inbox + dashboard broadcast
+  - @engineer in any message  → HITL queue
+  - Always write to Commander context store
 """
-import re
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -14,67 +19,43 @@ from shared.event_types import AGENT_MESSAGE, HUMAN_MESSAGE, EVT_MESSAGE
 
 logger = logging.getLogger(__name__)
 
-AGENT_IDS = ["recon", "exploit", "detect", "remediate", "monitor", "commander"]
-MENTION_PATTERN = re.compile(
-    r"@(recon|exploit|detect|remediate|monitor|commander|engineer|all)",
-    re.IGNORECASE,
-)
-
-
-def extract_mentions(content: str) -> list[str]:
-    return [m.lower() for m in MENTION_PATTERN.findall(content)]
+COMMANDER_INBOX = "agent.commander.inbox"
 
 
 async def route_message(message: dict) -> None:
-    """
-    Entry point for all messages — from engineer (via WS) or agents (via HTTP).
-
-    Routing rules:
-      - Engineer, no @mention     → commander only (commander coordinates agents)
-      - Engineer, @all            → all agent inboxes
-      - Engineer, @specific       → that agent's inbox only
-      - Agent, @specific/@all     → mentioned agents' inboxes
-      - Agent, no @mention        → dashboard only (no agent inboxes)
-      - @engineer in any message  → HITL queue
-      - Always broadcast to dashboard WebSocket
-      - Always write to Commander context store
-    """
     sender   = message.get("from_id", "unknown")
     content  = message.get("content", "")
-    mentions = extract_mentions(content)
+    msg_type = message.get("type", "chat")
 
-    # Determine recipients
-    if "all" in mentions:
-        recipients = AGENT_IDS
-    elif mentions:
-        recipients = [m for m in mentions if m != "engineer"]
-    elif sender == "engineer":
-        recipients = ["commander"]   # engineer → commander only; commander routes further
-    else:
-        recipients = []              # agent with no @mention → dashboard only
+    # Everything goes to Commander — Commander decides what happens next
+    await redis_bus.publish(COMMANDER_INBOX, message)
 
-    # Dispatch to agent inboxes via Redis pub/sub
-    for agent_name in recipients:
-        channel = f"agent.{agent_name}.inbox"
-        await redis_bus.publish(channel, message)
-
-    # If @engineer mentioned: push to HITL queue channel
-    if "engineer" in mentions:
+    # HITL requests always go to the HITL queue
+    if msg_type == "hitl" or "@engineer" in content:
         await redis_bus.publish("hitl.inbox", message)
 
-    # Always broadcast to all dashboard WebSocket connections
-    event_type = HUMAN_MESSAGE if sender == "engineer" else AGENT_MESSAGE
-    await broadcaster.manager.send({
-        "type":       event_type,
-        "message_id": message.get("message_id", _uuid()),
-        "from_id":    sender,
-        "to":         mentions or ["all"],
-        "content":    content,
-        "timestamp":  message.get("timestamp", _now()),
-        "metadata":   message.get("metadata", {}),
-    })
+    # Dashboard broadcast rules:
+    # - Engineer messages → always show (it's their own message)
+    # - Agent chat directed at engineer → show (Commander chose to surface it)
+    # - Agent results/status → don't show (raw agent output, Commander summarises)
+    should_broadcast = (
+        sender == "engineer"
+        or (sender not in ("engineer",) and msg_type == "chat")
+    )
 
-    # Always write to Commander context store (Phase 2 wires this fully)
+    if should_broadcast:
+        event_type = HUMAN_MESSAGE if sender == "engineer" else AGENT_MESSAGE
+        await broadcaster.manager.send({
+            "type":       event_type,
+            "message_id": message.get("message_id", _uuid()),
+            "from_id":    sender,
+            "to":         message.get("to", "commander"),
+            "content":    content,
+            "timestamp":  message.get("timestamp", _now()),
+            "metadata":   message.get("metadata", {}),
+        })
+
+    # Write to Commander context store
     await _write_to_commander(message)
 
 

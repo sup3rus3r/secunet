@@ -205,28 +205,36 @@ class BaseAgent:
     async def _handle_inbox(self, message: dict) -> None:
         """
         Process a message from the Redis inbox.
-        Default: respond via think_and_act with Commander context.
-        Subclasses can override for custom routing.
+        Only Commander is authorised to task agents — all other senders are ignored.
+        Results are always reported back to Commander only.
         """
         content = message.get("content", "")
         sender  = message.get("from_id", "unknown")
+        msg_type = message.get("type", "task")
+
         if not content:
             return
-        # Ignore own messages (self-loop guard)
-        if sender == self.AGENT_ID:
+
+        # HARD RULE: only Commander can task an agent
+        if sender != "commander":
+            logger.debug("[%s] Ignoring message from %s — not Commander", self.AGENT_ID, sender)
             return
 
-        logger.info("[%s] Inbox message from %s: %s", self.AGENT_ID, sender, content[:80])
+        logger.info("[%s] Task from Commander: %s", self.AGENT_ID, content[:80])
 
         context = await self.commander.ask(content)
-        prompt  = f"MESSAGE FROM {sender.upper()}: {content}\n\nCONTEXT:\n{context}"
+        prompt  = (
+            f"TASK FROM COMMANDER: {content}\n\n"
+            f"MISSION CONTEXT:\n{context}"
+        )
 
         try:
             reply = await self.think_and_act(prompt, max_tokens=4096)
         except Exception as exc:
-            reply = f"[{self.AGENT_ID}] Error processing message: {exc}"
+            reply = f"[{self.AGENT_ID}] Error: {exc}"
 
-        await self.cc.send_message(reply, to=sender)
+        # Report result back to Commander only — never broadcast, never reply to sender
+        await self.cc.send_message(reply, to="commander", msg_type="result")
 
     # ── Mission control polling ───────────────────────────────────────────
 
@@ -309,8 +317,12 @@ class BaseAgent:
         # Heartbeat
         self._tasks.append(asyncio.create_task(self._heartbeat_loop()))
 
-        # Announce
-        await self.cc.send_message(f"{self.AGENT_ID} online. Capabilities: {', '.join(self.CAPABILITIES)}")
+        # Notify Commander of readiness — no broadcast
+        await self.cc.send_message(
+            f"{self.AGENT_ID} online. Capabilities: {', '.join(self.CAPABILITIES)}",
+            to="commander",
+            msg_type="status",
+        )
 
         # Primary work loop
         try:
